@@ -118,16 +118,16 @@ api_key = api_key_input.strip()
 # Lista de jurados
 JURADOS = [
     {"slot": "Jurado #1", "name": "Perplexity Sonar", "id": "perplexity/sonar"},
-    {"slot": "Jurado #2", "name": "Cohere Command R+", "id": "cohere/command-r-plus"},
-    {"slot": "Jurado #3", "name": "Llama 3.3 70B", "id": "meta-llama/llama-3.3-70b-instruct"},
-    {"slot": "Jurado #4", "name": "Gemini 1.5 Pro", "id": "google/gemini-pro-1.5"},
+    {"slot": "Jurado #2", "name": "Cohere Command R+", "id": "deepseek/deepseek-v4.1-flash"},
+    {"slot": "Jurado #3", "name": "Llama 3.3 70B", "id": "meta-llama/llama-4-scout"},
+    {"slot": "Jurado #4", "name": "Gemini 1.5 Pro", "id": "google/gemini-3.8-flash"},
     {"slot": "Jurado #5", "name": "DeepSeek V3", "id": "deepseek/deepseek-chat"},
     {"slot": "Jurado #6", "name": "Mistral Large", "id": "mistralai/mistral-large"},
-    {"slot": "Jurado #7", "name": "Grok 2", "id": "x-ai/grok-2-1212"},
-    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "openai/gpt-5.6-luna"}
+    {"slot": "Jurado #7", "name": "Grok 2", "id": "x-ai/grok-4.6"},
+    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "openai/gpt-5.2-chat"}
 ]
 
-JUEZ_SUPREMO_ID = "openai/gpt-5.6-luna"
+JUEZ_SUPREMO_ID = "openai/gpt-5.2-chat"
 
 def consultar_modelo(client: OpenAI, model_id: str, prompt: str, system_prompt: str) -> str:
     try:
