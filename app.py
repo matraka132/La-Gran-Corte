@@ -124,10 +124,10 @@ JURADOS = [
     {"slot": "Jurado #5", "name": "DeepSeek V3", "id": "deepseek/deepseek-chat"},
     {"slot": "Jurado #6", "name": "Mistral Large", "id": "mistralai/mistral-large"},
     {"slot": "Jurado #7", "name": "Grok 2", "id": "x-ai/grok-2-1212"},
-    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "anthropic/claude-3.5-sonnet"}
+    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "openai/gpt-5.6-luna"}
 ]
 
-JUEZ_SUPREMO_ID = "anthropic/claude-3.5-sonnet"
+JUEZ_SUPREMO_ID = "openai/gpt-5.6-luna"
 
 def consultar_modelo(client: OpenAI, model_id: str, prompt: str, system_prompt: str) -> str:
     try:
