@@ -6,10 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configuración visual de la página
 st.set_page_config(page_title="La Gran Corte de Pan con Leche", layout="wide")
 
-# Estilos CSS para recrear el tribunal, placas doradas e indicadores
 st.markdown("""
 <style>
     .stApp {
@@ -77,7 +75,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Encabezado
 st.markdown("""
 <div class="court-header">
     <div class="court-title">🏛️ LA GRAN CORTE DE PAN CON LECHE</div>
@@ -88,12 +85,24 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Configuración API Key (Variable de entorno o entrada manual en barra lateral)
-api_key = os.getenv("OPENROUTER_API_KEY")
-if not api_key:
-    api_key = st.sidebar.text_input("OpenRouter API Key:", type="password")
+# Detección de API Key desde st.secrets, .env o entrada manual
+api_key = None
+if "OPENROUTER_API_KEY" in st.secrets:
+    api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
+elif os.getenv("OPENROUTER_API_KEY"):
+    api_key = str(os.getenv("OPENROUTER_API_KEY")).strip()
 
-# Modelos correspondientes a los 8 jurados de la imagen
+with st.sidebar:
+    st.markdown("### 🔑 Configuración de Acceso")
+    manual_key = st.text_input("Ingresa o valida tu OpenRouter API Key:", value=api_key if api_key else "", type="password")
+    if manual_key:
+        api_key = manual_key.strip()
+    
+    if api_key and api_key.startswith("sk-or-"):
+        st.success("API Key detectada con formato válido")
+    else:
+        st.error("API Key no detectada o formato incorrecto (debe iniciar con sk-or-)")
+
 JURADOS = [
     {"slot": "Jurado #1", "name": "Perplexity Sonar", "id": "perplexity/sonar"},
     {"slot": "Jurado #2", "name": "Cohere Command R+", "id": "cohere/command-r-plus"},
@@ -112,7 +121,7 @@ def consultar_openrouter(model_id: str, prompt: str, system_prompt: str) -> str:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/matraka132",
+        "HTTP-Referer": "https://github.com/matraka132/La-Gran-Corte",
         "X-Title": "La Gran Corte de Pan con Leche"
     }
     payload = {
@@ -125,17 +134,17 @@ def consultar_openrouter(model_id: str, prompt: str, system_prompt: str) -> str:
     }
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=60)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']
+        data = response.json()
+        if response.status_code == 200 and "choices" in data:
+            return data['choices'][0]['message']['content']
         else:
             return f"Error {response.status_code}: {response.text}"
     except Exception as e:
         return f"Fallo de conexión: {str(e)}"
 
-# Entrada del Acusado
 investigado = st.text_area(
     "Introduce tu alegato, o DATOS, o NOMBRE DE INVESTIGADO:",
-    placeholder="Ejemplo: HOY VAMOS A INVESTIGAR A [Nombre del sujeto o empresa]...",
+    placeholder="HOY VAMOS A INVESTIGAR A...",
     height=100
 )
 
@@ -150,7 +159,6 @@ if reiniciar:
 
 st.markdown("### 📜 Estado del Escaneo de Agentes:")
 
-# Render inicial del estrado
 cols = st.columns(4)
 jurado_placeholders = []
 for i, jurado in enumerate(JURADOS):
@@ -164,31 +172,27 @@ for i, jurado in enumerate(JURADOS):
         """, unsafe_allow_html=True)
         jurado_placeholders.append(ph)
 
-# Ejecución del juicio
 if iniciar:
     if not api_key:
-        st.error("Introduce tu API Key de OpenRouter en la barra lateral o en tu archivo .env.")
+        st.error("No hay API Key configurada. Ingrésala en la barra lateral izquierda.")
     elif not investigado.strip():
         st.warning("Debes ingresar el nombre del investigado o evidencia para deliberar.")
     else:
         votos_jurado = []
         system_jurado = (
-            "Eres un jurado implacable en un tribunal antifraude. Tu objetivo es evaluar al sujeto investigado "
-            "y determinar si presenta patrones de 'vendehumos', falsas promesas, estafas piramidales, "
-            "cursos inflados o engaños. Fundamenta tu postura con hechos, patrones de operación conocidos "
-            "o riesgos objetivos detectados. Sé directo, conciso y emite: 1) Clasificación de riesgo, 2) Razones clave."
+            "Eres un jurado antifraude implacable. Analiza críticamente los datos del sujeto/entidad. "
+            "Detecta patrones de venta de humo, cursos engañosos, falsas promesas de riqueza o estafas. "
+            "Responde con: 1) Clasificación de riesgo, 2) Argumentos y datos concretos."
         )
 
-        progreso = st.progress(0, text="Iniciando deliberación del jurado...")
+        progreso = st.progress(0, text="Iniciando deliberación de los jurados...")
 
         for idx, jurado in enumerate(JURADOS):
             progreso.text(f"Consultando a {jurado['name']} ({jurado['slot']})...")
             
-            # Ejecución secuencial para no saturar límites de rate
             alegato = consultar_openrouter(jurado["id"], investigado, system_jurado)
             votos_jurado.append({"nombre": jurado["name"], "dictamen": alegato})
 
-            # Encender LED en la interfaz
             jurado_placeholders[idx].markdown(f"""
             <div class="juror-card" style="border-color: #00ff66;">
                 <small style="color: #ffe082;">{jurado['slot']}</small><br>
@@ -198,34 +202,29 @@ if iniciar:
 
             progreso.progress((idx + 1) / (len(JURADOS) + 1))
 
-        # Fase Final: El Juez Supremo emite el Veredicto
-        progreso.text("El Juez Supremo está deliberando sobre las pruebas del jurado...")
+        progreso.text("El Juez Supremo está consolidando el veredicto...")
         
-        expediente_completo = f"SUJETO INVESTIGADO:\n{investigado}\n\nEVIDENCIAS Y ALEGATOS DEL JURADO:\n"
+        expediente_completo = f"INVESTIGADO:\n{investigado}\n\nDELIBERACIONES DEL JURADO:\n"
         for v in votos_jurado:
-            expediente_completo += f"\n--- Veredicto {v['nombre']} ---\n{v['dictamen']}\n"
+            expediente_completo += f"\n--- {v['nombre']} ---\n{v['dictamen']}\n"
 
         system_supremo = (
-            "Eres el Juez Presidente de 'La Gran Corte de Pan con Leche'. Has recibido los análisis de 8 jurados "
-            "sobre un presunto vendehumos o entidad fraudulenta. Debes consolidar todas las pruebas, "
-            "eliminar contradicciones y entregar un VEREDICTO FINAL rotundo, estructurado y respaldado con datos:\n"
-            "1. RESUMEN DEL CASO Y ACUSADO\n"
-            "2. PRUEBAS DE CARGO Y PATRONES DETECTADOS\n"
-            "3. PUNTOS A FAVOR O ELEMENTOS NO PROBADOS\n"
-            "4. SENTENCIA / VEREDICTO (Inocente / Dudoso / Culpable de Vendehumos)\n"
-            "5. RECOMENDACIÓN FINAL AL PÚBLICO."
+            "Eres el Juez Supremo de 'La Gran Corte de Pan con Leche'. Analiza los 8 reportes del jurado "
+            "y redacta el VEREDICTO FINAL estructurado:\n"
+            "1. RESUMEN DEL CASO\n"
+            "2. PATRONES DETECTADOS Y NIVEL DE RIESGO\n"
+            "3. SENTENCIA FINAL (Inocente / Sospechoso / Culpable de Vendehumos)\n"
+            "4. RECOMENDACIÓN AL PÚBLICO."
         )
 
         veredicto_final = consultar_openrouter(JUEZ_SUPREMO_ID, expediente_completo, system_supremo)
         progreso.progress(1.0, text="Juicio Concluido.")
 
-        # Despliegue del Veredicto
         st.markdown('<div class="verdict-box">', unsafe_allow_html=True)
         st.markdown("## ⚖️ VEREDICTO FINAL DE LA CORTE")
         st.markdown(veredicto_final)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Registro expandible de las opiniones individuales
         with st.expander("🔍 Ver deliberaciones individuales de los 8 Jurados"):
             for v in votos_jurado:
                 st.markdown(f"**{v['nombre']}**")
