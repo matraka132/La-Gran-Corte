@@ -1,7 +1,6 @@
 import streamlit as st
-import requests
-import json
 import os
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -85,24 +84,38 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Detección de API Key desde st.secrets, .env o entrada manual
-api_key = None
+# Manejo robusto de la clave en sesión
+default_key = ""
 if "OPENROUTER_API_KEY" in st.secrets:
-    api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
+    default_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
 elif os.getenv("OPENROUTER_API_KEY"):
-    api_key = str(os.getenv("OPENROUTER_API_KEY")).strip()
+    default_key = str(os.getenv("OPENROUTER_API_KEY")).strip()
 
 with st.sidebar:
-    st.markdown("### 🔑 Configuración de Acceso")
-    manual_key = st.text_input("Ingresa o valida tu OpenRouter API Key:", value=api_key if api_key else "", type="password")
-    if manual_key:
-        api_key = manual_key.strip()
+    st.markdown("### 🔑 Credenciales OpenRouter")
+    api_key_input = st.text_input("Ingresa tu API Key:", value=default_key, type="password")
     
-    if api_key and api_key.startswith("sk-or-"):
-        st.success("API Key detectada con formato válido")
-    else:
-        st.error("API Key no detectada o formato incorrecto (debe iniciar con sk-or-)")
+    if st.button("🧪 Probar Conexión con OpenRouter"):
+        if not api_key_input.strip():
+            st.error("Por favor introduce una clave primero.")
+        else:
+            try:
+                test_client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=api_key_input.strip()
+                )
+                res = test_client.chat.completions.create(
+                    model="meta-llama/llama-3.3-70b-instruct",
+                    messages=[{"role": "user", "content": "di ok"}],
+                    max_tokens=5
+                )
+                st.success("✅ ¡Conexión exitosa con OpenRouter! La clave funciona perfectamente.")
+            except Exception as e:
+                st.error(f"❌ Error al conectar: {e}")
 
+api_key = api_key_input.strip()
+
+# Lista de jurados
 JURADOS = [
     {"slot": "Jurado #1", "name": "Perplexity Sonar", "id": "perplexity/sonar"},
     {"slot": "Jurado #2", "name": "Cohere Command R+", "id": "cohere/command-r-plus"},
@@ -116,31 +129,19 @@ JURADOS = [
 
 JUEZ_SUPREMO_ID = "anthropic/claude-3.5-sonnet"
 
-def consultar_openrouter(model_id: str, prompt: str, system_prompt: str) -> str:
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/matraka132/La-Gran-Corte",
-        "X-Title": "La Gran Corte de Pan con Leche"
-    }
-    payload = {
-        "model": model_id,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.2
-    }
+def consultar_modelo(client: OpenAI, model_id: str, prompt: str, system_prompt: str) -> str:
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
-        data = response.json()
-        if response.status_code == 200 and "choices" in data:
-            return data['choices'][0]['message']['content']
-        else:
-            return f"Error {response.status_code}: {response.text}"
+        completion = client.chat.completions.create(
+            model=model_id,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        return completion.choices[0].message.content
     except Exception as e:
-        return f"Fallo de conexión: {str(e)}"
+        return f"Error con {model_id}: {str(e)}"
 
 investigado = st.text_area(
     "Introduce tu alegato, o DATOS, o NOMBRE DE INVESTIGADO:",
@@ -174,23 +175,32 @@ for i, jurado in enumerate(JURADOS):
 
 if iniciar:
     if not api_key:
-        st.error("No hay API Key configurada. Ingrésala en la barra lateral izquierda.")
+        st.error("⚠️ Falta la API Key en la barra lateral.")
     elif not investigado.strip():
-        st.warning("Debes ingresar el nombre del investigado o evidencia para deliberar.")
+        st.warning("⚠️ Debes introducir a quién vamos a investigar.")
     else:
-        votos_jurado = []
-        system_jurado = (
-            "Eres un jurado antifraude implacable. Analiza críticamente los datos del sujeto/entidad. "
-            "Detecta patrones de venta de humo, cursos engañosos, falsas promesas de riqueza o estafas. "
-            "Responde con: 1) Clasificación de riesgo, 2) Argumentos y datos concretos."
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+            default_headers={
+                "HTTP-Referer": "https://github.com/matraka132/La-Gran-Corte",
+                "X-Title": "La Gran Corte de Pan con Leche"
+            }
         )
 
-        progreso = st.progress(0, text="Iniciando deliberación de los jurados...")
+        votos_jurado = []
+        system_jurado = (
+            "Eres un jurado antifraude implacable. Analiza críticamente al sujeto o empresa mencionada. "
+            "Detecta patrones de venta de humo, promesas vacías, academias o cursos cuestionables y estafas. "
+            "Entrega: 1) Nivel de riesgo, 2) Razones y datos objetivos detectados."
+        )
+
+        progreso = st.progress(0, text="Los jurados están deliberando...")
 
         for idx, jurado in enumerate(JURADOS):
             progreso.text(f"Consultando a {jurado['name']} ({jurado['slot']})...")
             
-            alegato = consultar_openrouter(jurado["id"], investigado, system_jurado)
+            alegato = consultar_modelo(client, jurado["id"], investigado, system_jurado)
             votos_jurado.append({"nombre": jurado["name"], "dictamen": alegato})
 
             jurado_placeholders[idx].markdown(f"""
@@ -202,22 +212,22 @@ if iniciar:
 
             progreso.progress((idx + 1) / (len(JURADOS) + 1))
 
-        progreso.text("El Juez Supremo está consolidando el veredicto...")
+        progreso.text("El Juez Supremo está consolidando el veredicto final...")
         
-        expediente_completo = f"INVESTIGADO:\n{investigado}\n\nDELIBERACIONES DEL JURADO:\n"
+        expediente_completo = f"ACUSADO / HECHOS:\n{investigado}\n\nDELIBERACIONES DEL JURADO:\n"
         for v in votos_jurado:
             expediente_completo += f"\n--- {v['nombre']} ---\n{v['dictamen']}\n"
 
         system_supremo = (
-            "Eres el Juez Supremo de 'La Gran Corte de Pan con Leche'. Analiza los 8 reportes del jurado "
-            "y redacta el VEREDICTO FINAL estructurado:\n"
+            "Eres el Juez Supremo de 'La Gran Corte de Pan con Leche'. Evalúa los 8 dictámenes del jurado "
+            "y entrega un VEREDICTO FINAL rotundo, detallado y contundente:\n"
             "1. RESUMEN DEL CASO\n"
-            "2. PATRONES DETECTADOS Y NIVEL DE RIESGO\n"
-            "3. SENTENCIA FINAL (Inocente / Sospechoso / Culpable de Vendehumos)\n"
-            "4. RECOMENDACIÓN AL PÚBLICO."
+            "2. PATRONES DETECTADOS Y SEÑALES DE ALERTA\n"
+            "3. SENTENCIA (Inocente / Sospechoso / Culpable de Vendehumos)\n"
+            "4. RECOMENDACIÓN FINAL AL PÚBLICO."
         )
 
-        veredicto_final = consultar_openrouter(JUEZ_SUPREMO_ID, expediente_completo, system_supremo)
+        veredicto_final = consultar_modelo(client, JUEZ_SUPREMO_ID, expediente_completo, system_supremo)
         progreso.progress(1.0, text="Juicio Concluido.")
 
         st.markdown('<div class="verdict-box">', unsafe_allow_html=True)
