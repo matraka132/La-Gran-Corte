@@ -124,7 +124,7 @@ JURADOS = [
     {"slot": "Jurado #5", "name": "DeepSeek V3", "id": "deepseek/deepseek-chat"},
     {"slot": "Jurado #6", "name": "Mistral Large", "id": "mistralai/mistral-medium-3"},
     {"slot": "Jurado #7", "name": "Grok 2", "id": "x-ai/grok-4.20-multi-agent"},
-    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "openai/gpt-5"}
+    {"slot": "Jurado #8", "name": "Claude 3.5 Sonnet", "id": "openai/gpt-5.2-chat"}
 ]
 
 JUEZ_SUPREMO_ID = "openai/gpt-5"
