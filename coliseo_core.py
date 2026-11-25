@@ -1,6 +1,5 @@
 import os
 import json
-import urllib.parse
 from datetime import datetime, timezone, timedelta
 import requests
 from concurrent.futures import ThreadPoolExecutor
@@ -27,7 +26,6 @@ def obtener_partidos_hoy_hardrock(odds_api_key, deportes=None):
         return ""
 
     if deportes is None:
-        # Deportes principales activos; puedes agregar o quitar según temporada
         deportes = [
             "basketball_nba",
             "basketball_ncaab",
@@ -41,7 +39,6 @@ def obtener_partidos_hoy_hardrock(odds_api_key, deportes=None):
             "soccer_uefa_champs_league"
         ]
 
-    # Ventana de tiempo: juegos que empiezan hoy (hora Este EE.UU. / Florida)
     tz_est = timezone(timedelta(hours=-5))
     ahora_est = datetime.now(tz_est)
     fin_dia_est = ahora_est.replace(hour=23, minute=59, second=59)
@@ -53,7 +50,7 @@ def obtener_partidos_hoy_hardrock(odds_api_key, deportes=None):
         params = {
             "apiKey": odds_api_key,
             "regions": "us",
-            "markets": "h2h,spreads",  # <-- EXCLUYE 'totals' (Over/Under)
+            "markets": "h2h,spreads",
             "bookmakers": "hardrockbet",
             "oddsFormat": "american"
         }
@@ -63,7 +60,6 @@ def obtener_partidos_hoy_hardrock(odds_api_key, deportes=None):
                 continue
 
             for juego in r.json():
-                # Filtrar solo partidos de hoy
                 inicio_utc = datetime.fromisoformat(juego["commence_time"].replace("Z", "+00:00"))
                 inicio_est = inicio_utc.astimezone(tz_est)
                 if not (ahora_est - timedelta(hours=1) <= inicio_est <= fin_dia_est):
@@ -75,7 +71,6 @@ def obtener_partidos_hoy_hardrock(odds_api_key, deportes=None):
                         continue
                     for market in book.get("markets", []):
                         m_key = market.get("key")
-                        # Doble seguro para descartar cualquier total/over/under
                         if m_key not in ("h2h", "spreads"):
                             continue
 
@@ -161,7 +156,6 @@ def ejecutar_pipeline_coliseo(pregunta, api_key, callback_progreso=None):
         "(Moneyline), Hándicap/Spread o doble oportunidad."
     )
 
-    # FASE 1
     if callback_progreso:
         callback_progreso("📡 Fase 1/3: Buscando datos en vivo y estadísticas...")
 
@@ -188,7 +182,6 @@ def ejecutar_pipeline_coliseo(pregunta, api_key, callback_progreso=None):
         call_cohere = f_coh.result()
         call_llama = f_llam.result()
 
-    # FASE 2
     if callback_progreso:
         callback_progreso("⚖️ Fase 2/3: Auditando probabilidades, incongruencias e intangibles...")
 
@@ -226,7 +219,6 @@ def ejecutar_pipeline_coliseo(pregunta, api_key, callback_progreso=None):
         call_grok = f_grok.result()
         call_gemini = f_gem.result()
 
-    # FASE 3
     if callback_progreso:
         callback_progreso("👑 Fase 3/3: Emitiendo veredicto final del Juez Supremo...")
 
@@ -271,31 +263,32 @@ def ejecutar_pipeline_coliseo(pregunta, api_key, callback_progreso=None):
         "fecha": datetime.now().strftime("%Y-%m-%d %I:%M %p")
     }
 
-    # Guardar respaldo local para que Streamlit pueda leerlo
     with open("ultimo_veredicto.json", "w", encoding="utf-8") as f:
         json.dump(resultados, f, ensure_ascii=False, indent=2)
 
     return resultados
 
 # ==========================================================
-# 4. ENVÍO A WHATSAPP (CallMeBot - Gratis y sin servidor propio)
+# 4. ENVÍO OFICIAL POR TELEGRAM (SIN LÍMITES NI BLOQUEOS)
 # ==========================================================
-def enviar_whatsapp(telefono, apikey_callmebot, mensaje):
+def enviar_whatsapp(chat_id, bot_token, mensaje):
     """
-    Envía el veredicto a tu WhatsApp personal usando CallMeBot.
-    Formato telefono: +1XXXXXXXXXX (con código de país).
+    Envía el veredicto directo a tu Telegram personal.
+    Mantiene el nombre de función para compatibilidad directa con ejecutar_5pm.py.
     """
-    if not telefono or not apikey_callmebot:
-        return False, "Falta teléfono o API Key de CallMeBot."
+    if not chat_id or not bot_token:
+        return False, "Falta Chat ID o Token de Telegram."
 
-    # Recortar si excede el límite cómodo de WhatsApp
-    texto_limpio = mensaje[:3500]
-    texto_codificado = urllib.parse.quote(texto_limpio)
-    tel_limpio = telefono.replace(" ", "").replace("-", "")
-
-    url = f"https://api.callmebot.com/whatsapp.php?phone={tel_limpio}&text={texto_codificado}&apikey={apikey_callmebot}"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     try:
-        r = session.get(url, timeout=20)
-        return (r.status_code == 200), r.text
+        # Divide en bloques de 4000 caracteres si el análisis es muy largo
+        for i in range(0, len(mensaje), 4000):
+            r = session.post(url, json={
+                "chat_id": str(chat_id).strip(),
+                "text": mensaje[i:i+4000]
+            }, timeout=20)
+            if r.status_code != 200:
+                return False, r.text
+        return True, "Enviado correctamente"
     except Exception as e:
         return False, str(e)
