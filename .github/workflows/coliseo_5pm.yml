@@ -1,1 +1,31 @@
+name: El Coliseo - Ejecución Diaria 5PM
 
+on:
+  schedule:
+    # 22:00 UTC = 5:00 PM EST (Hora estándar de Florida, como hoy en noviembre)
+    # Nota: En horario de verano (marzo a noviembre) 5:00 PM EDT es '0 21 * * *'
+    - cron: '0 22 * * *'
+  workflow_dispatch: # Agrega un botón en GitHub para ejecutarlo manualmente cuando quieras
+
+jobs:
+  analizar-partidos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar librerías
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar análisis de las 5 PM
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
+          WA_APIKEY: ${{ secrets.WA_APIKEY }}
+        run: python ejecutar_5pm.py
