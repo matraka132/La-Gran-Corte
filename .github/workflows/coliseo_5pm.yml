@@ -2,7 +2,7 @@ name: El Coliseo 5PM
 
 on:
   schedule:
-    - cron: '45 16 * * *'
+    - cron: '30 14 * * *'
   workflow_dispatch:
 
 jobs:
